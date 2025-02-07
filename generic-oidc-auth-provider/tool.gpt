@@ -1,12 +1,12 @@
-Name: GenericOIDC
-Description: Auth provider for generic OIDC
+Name: openid-connect
+Description: Auth provider for generic OpenID Connect
 Metadata: noUserAuth: generic-oidc-auth-provider
 Credential: ../placeholder-credential as generic-oidc-auth-provider
 
 #!sys.daemon ${GPTSCRIPT_TOOL_DIR}/bin/gptscript-go-tool
 
 ---
-!metadata:GenericOIDC:providerMeta
+!metadata:openid-connect:providerMeta
 {
     "icon": "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/openid.svg",
     "link": "https://openid.net/",

@@ -24,11 +24,6 @@ type Options struct {
 	ObotServerURL    string `env:"OBOT_SERVER_URL"`
 	AuthCookieSecret string `usage:"Secret used to encrypt cookie" env:"OBOT_AUTH_PROVIDER_COOKIE_SECRET"`
 	AuthEmailDomains string `usage:"Email domains allowed for authentication" default:"*" env:"OBOT_AUTH_PROVIDER_EMAIL_DOMAINS"`
-	// GitHubTeams      *string `usage:"restrict logins to members of any of these GitHub teams (comma-separated list)" optional:"true" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_TEAMS"`
-	// GitHubOrg        *string `usage:"restrict logins to members of this GitHub organization" optional:"true" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_ORG"`
-	// GitHubRepo       *string `usage:"restrict logins to collaborators on this GitHub repository (formatted orgname/repo)" optional:"true" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_REPO"`
-	// GitHubToken      *string `usage:"the token to use when verifying repository collaborators (must have push access to the repository)" optional:"true" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_TOKEN"`
-	// GitHubAllowUsers *string `usage:"users allowed to log in, even if they do not belong to the specified org and team or collaborators" optional:"true" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_ALLOW_USERS"`
 }
 
 func main() {
