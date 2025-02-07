@@ -4,11 +4,11 @@ import (
 	"context"
 )
 
-type githubResponse struct {
-	AvatarURL string `json:"avatar_url"`
-}
+// type githubResponse struct {
+// 	AvatarURL string `json:"avatar_url"`
+// }
 
-func FetchGitHubProfileIconURL(ctx context.Context, accessToken string) (string, error) {
+func FetchProfileIconURL(ctx context.Context, accessToken string) (string, error) {
 	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
 	// if err != nil {
 	// 	return "", err

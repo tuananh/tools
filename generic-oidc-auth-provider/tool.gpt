@@ -14,13 +14,13 @@ Credential: ../placeholder-credential as generic-oidc-auth-provider
         {
             "name": "OBOT_GENERIC_OIDC_AUTH_PROVIDER_CLIENT_ID",
             "friendlyName": "Client ID",
-            "description": "Client ID for your GitHub OAuth app. Can be found in GitHub Developer Settings > OAuth Apps",
+            "description": "Client ID for your OAuth app.",
             "sensitive": false
         },
         {
             "name": "OBOT_GENERIC_OIDC_AUTH_PROVIDER_CLIENT_SECRET",
             "friendlyName": "Client Secret",
-            "description": "Client secret for your GitHub OAuth app. Can be found in GitHub Developer Settings > OAuth Apps",
+            "description": "Client secret for your OAuth app.",
             "sensitive": true
         },
         {

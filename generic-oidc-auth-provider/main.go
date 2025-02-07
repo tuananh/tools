@@ -45,8 +45,8 @@ func main() {
 	}
 
 	legacyOpts := options.NewLegacyOptions()
-	legacyOpts.LegacyProvider.ProviderType = "github"
-	legacyOpts.LegacyProvider.ProviderName = "github"
+	legacyOpts.LegacyProvider.ProviderType = "generic-oidc"
+	legacyOpts.LegacyProvider.ProviderName = "generic-oidc"
 	legacyOpts.LegacyProvider.ClientID = opts.ClientID
 	legacyOpts.LegacyProvider.ClientSecret = opts.ClientSecret
 
@@ -92,7 +92,7 @@ func main() {
 		w.Write([]byte(fmt.Sprintf("http://127.0.0.1:%s", port)))
 	})
 	mux.HandleFunc("/obot-get-state", state.ObotGetState(oauthProxy))
-	mux.HandleFunc("/obot-get-icon-url", icon.ObotGetIconURL(profile.FetchGitHubProfileIconURL))
+	mux.HandleFunc("/obot-get-icon-url", icon.ObotGetIconURL(profile.FetchProfileIconURL))
 	mux.HandleFunc("/", oauthProxy.ServeHTTP)
 
 	fmt.Printf("listening on 127.0.0.1:%s\n", port)
