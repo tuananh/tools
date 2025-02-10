@@ -138,3 +138,5 @@ authProviders:
     reference: ./github-auth-provider
   google-auth-provider:
     reference: ./google-auth-provider
+  generic-oidc-auth-provider:
+    reference: ./generic-oidc-auth-provider
