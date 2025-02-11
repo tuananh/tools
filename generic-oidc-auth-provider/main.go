@@ -19,9 +19,11 @@ import (
 )
 
 type Options struct {
+	OIDCIssuerURL    string `usage:"Issuer URL" env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_OIDC_ISSUER_URL"`
 	ClientID         string `env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_CLIENT_ID"`
 	ClientSecret     string `env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_CLIENT_SECRET"`
 	ObotServerURL    string `env:"OBOT_SERVER_URL"`
+	Debug            string `env:"OBOT_GENERIC_OIDC_AUTH_PROVIDER_DEBUG" usage:"Enable debug logging" default:"false"`
 	AuthCookieSecret string `usage:"Secret used to encrypt cookie" env:"OBOT_AUTH_PROVIDER_COOKIE_SECRET"`
 	AuthEmailDomains string `usage:"Email domains allowed for authentication" default:"*" env:"OBOT_AUTH_PROVIDER_EMAIL_DOMAINS"`
 }
@@ -40,8 +42,9 @@ func main() {
 	}
 
 	legacyOpts := options.NewLegacyOptions()
-	legacyOpts.LegacyProvider.ProviderType = "generic-oidc"
-	legacyOpts.LegacyProvider.ProviderName = "generic-oidc"
+	legacyOpts.LegacyProvider.ProviderType = "keycloak-oidc"
+	legacyOpts.LegacyProvider.ProviderName = "keycloak-oidc"
+	legacyOpts.LegacyProvider.OIDCIssuerURL = opts.OIDCIssuerURL
 	legacyOpts.LegacyProvider.ClientID = opts.ClientID
 	legacyOpts.LegacyProvider.ClientSecret = opts.ClientSecret
 
@@ -62,9 +65,10 @@ func main() {
 	if opts.AuthEmailDomains != "" {
 		oauthProxyOpts.EmailDomains = strings.Split(opts.AuthEmailDomains, ",")
 	}
-	oauthProxyOpts.Logging.RequestEnabled = false
-	oauthProxyOpts.Logging.AuthEnabled = false
-	oauthProxyOpts.Logging.StandardEnabled = false
+	loggingEnabled := opts.Debug == "true"
+	oauthProxyOpts.Logging.RequestEnabled = loggingEnabled
+	oauthProxyOpts.Logging.AuthEnabled = loggingEnabled
+	oauthProxyOpts.Logging.StandardEnabled = loggingEnabled
 
 	if err = validation.Validate(oauthProxyOpts); err != nil {
 		fmt.Printf("failed to validate options: %v\n", err)

@@ -12,6 +12,12 @@ Credential: ../placeholder-credential as generic-oidc-auth-provider
     "link": "https://openid.net/",
     "envVars": [
         {
+            "name": "OBOT_GENERIC_OIDC_AUTH_PROVIDER_ISSUER_URL",
+            "friendlyName": "Issuer URL",
+            "description": "Issuer URL for your OAuth app.",
+            "sensitive": false
+        },
+        {
             "name": "OBOT_GENERIC_OIDC_AUTH_PROVIDER_CLIENT_ID",
             "friendlyName": "Client ID",
             "description": "Client ID for your OAuth app.",
@@ -37,5 +43,12 @@ Credential: ../placeholder-credential as generic-oidc-auth-provider
             "sensitive": false
         }
     ],
-    "optionalEnvVars": []
+    "optionalEnvVars": [
+        {
+            "name": "OBOT_GENERIC_OIDC_AUTH_PROVIDER_DEBUG",
+            "friendlyName": "Debug",
+            "description": "Enable debug logging.",
+            "sensitive": false
+        }
+    ]
 }
