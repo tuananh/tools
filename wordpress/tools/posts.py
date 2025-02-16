@@ -1,31 +1,67 @@
 import urllib.parse
 import os
-from tools.helper import WORDPRESS_API_URL, tool_registry, str_to_bool, is_valid_iso8601
+from tools.helper import (
+    WORDPRESS_API_URL,
+    tool_registry,
+    str_to_bool,
+    is_valid_iso8601,
+    setup_logger,
+)
 import urllib.parse
+import mistune
+from typing import Union
+import sys
+import json
+
+logger = setup_logger(__name__)
 
 
-def _format_posts_response(response_json: dict):
-    new_response_json = {}
-    keys = [
-        "id",
-        "date",
-        "date_gmt",
-        "modified",
-        "modified_gmt",
-        "slug",
-        "status",
-        "type",
-        "link",
-        "title",
-        "content",
-        "excerpt",
-        "author",
-        "featured_media",
-        "format",
-    ]
-    for key in keys:
-        new_response_json[key] = response_json[key]
-    return new_response_json
+def _format_posts_response(response_json: Union[dict, list]) -> Union[dict, list]:
+    # response is either a list of dict or a single dict
+    try:
+        if isinstance(response_json, list):
+            return [_format_posts_response(post) for post in response_json]
+        else:
+            keys = [
+                "id",
+                "date",
+                "date_gmt",
+                "modified",
+                "modified_gmt",
+                "slug",
+                "status",
+                "type",
+                "link",
+                "title",
+                "excerpt",
+                "author",
+                "featured_media",
+                "format",
+            ]
+            return {key: response_json[key] for key in keys if key in response_json}
+    except Exception as e:
+        logger.error(f"Error formatting posts response: {e}")
+        return response_json
+
+
+def _content_formatter(content: str) -> str:
+    """Use Mistune to convert markdown content to HTML.
+
+    Args:
+        content (str): The markdown content to convert to HTML.
+
+    Returns:
+        str: The HTML content.
+    """
+    res_text = mistune.html(content)
+    if res_text != content:
+        logger.info(
+            f"Content before Markdown to HTML conversion: {json.dumps(content, indent=4)}"
+        )  # use json.dumps to escape special characters
+        logger.info(
+            f"Content after Markdown to HTML conversion: {json.dumps(res_text, indent=4)}"
+        )
+    return res_text
 
 
 @tool_registry.register("RetrievePost")
@@ -48,10 +84,16 @@ def retrieve_post(client):
     response = client.get(url, params=query_params)
     if response.status_code == 200:
         return response.json()
-    else:
+    elif response.status_code == 401:
         print(
-            f"Failed to retrieve post. Error: {response.status_code}, {response.text}"
+            f"Authentication failed: {response.status_code}. Error Message: {response.text}"
         )
+    elif response.status_code == 403:
+        print(
+            f"Permission denied: {response.status_code}. Error Message: {response.text}"
+        )
+    else:
+        print(f"Failed to retrieve post. Error code: {response.status_code}")
 
 
 @tool_registry.register("ListPosts")
@@ -144,10 +186,20 @@ def list_posts(client):
     query_params["order"] = order
 
     response = client.get(url, params=query_params)
-    if response.status_code >= 200 and response.status_code < 300:
-        return [_format_posts_response(post) for post in response.json()]
+    if response.status_code == 200:
+        return _format_posts_response(response.json())
+    elif response.status_code == 401:
+        print(
+            f"Authentication failed: {response.status_code}. Error Message: {response.text}"
+        )
+    elif response.status_code == 400 or response.status_code == 403:
+        print(
+            f"Permission denied: {response.status_code}. Error Message: {response.text}"
+        )
     else:
-        print(f"Failed to list posts. Error: {response.status_code}, {response.text}")
+        print(
+            f"Failed to list posts. Error: {response.status_code}. Error Message: {response.text}"
+        )
 
 
 @tool_registry.register("CreatePost")
@@ -159,6 +211,8 @@ def create_post(client):
     content = os.getenv("CONTENT", "")
     if title == "" and content == "":
         raise ValueError("Error: At least one of title or content must be provided.")
+    content = _content_formatter(content)
+
     status = os.getenv("STATUS", "draft").lower()
     status_enum = ["publish", "future", "draft", "pending", "private"]
     if status not in status_enum:
@@ -240,10 +294,21 @@ def create_post(client):
     post_data["ping_status"] = ping_status
 
     response = client.post(url, json=post_data)
-    if response.status_code >= 200 and response.status_code < 300:
+    if response.status_code == 201:
         return _format_posts_response(response.json())
+    elif response.status_code == 401:
+        print(
+            f"Authentication failed: {response.status_code}. Error Message: {response.text}"
+        )
+    elif response.status_code == 403:
+        print(
+            f"Permission denied: {response.status_code}. Error Message: {response.text}"
+        )
     else:
-        print(f"Failed to create post. Error: {response.status_code}, {response.text}")
+        print(f"Failed to create post. Error: {response.status_code}")
+        logger.error(
+            f"Failed to create post. Error Code: {response.status_code}. Error Message: {json.dumps(response.text)}",
+        )
 
 
 @tool_registry.register("DeletePost")
@@ -256,10 +321,18 @@ def delete_post(client):
         query_params["force"] = "true"
 
     response = client.delete(url, params=query_params)
-    if response.status_code >= 200 and response.status_code < 300:
-        return {"message": "Post deleted successfully"}
+    if response.status_code == 200:
+        return {
+            "message": f"{response.status_code}. Post {post_id} deleted successfully"
+        }
+    elif response.status_code == 401:
+        print(f"Authentication failed: {response.status_code}, {response.text}")
+    elif response.status_code == 403:
+        print(f"Permission denied: {response.status_code}, {response.text}")
     else:
-        print(f"Failed to delete post. Error: {response.status_code}, {response.text}")
+        print(
+            f"Failed to delete post. Error status code: {response.status_code}. Error Message: {response.text}"
+        )
 
 
 @tool_registry.register("UpdatePost")
@@ -278,6 +351,7 @@ def update_post(client):
         content = os.environ["CONTENT"]
         if content == "":
             raise ValueError("Error: Content to update cannot be empty.")
+        content = _content_formatter(content)
         post_data["content"] = content
     if "STATUS" in os.environ:
         status = os.environ["STATUS"].lower()
@@ -361,7 +435,18 @@ def update_post(client):
         post_data["ping_status"] = ping_status
 
     response = client.post(url, json=post_data)
-    if response.status_code >= 200 and response.status_code < 300:
+    if response.status_code == 200:
         return _format_posts_response(response.json())
+    elif response.status_code == 401:
+        print(
+            f"Authentication failed: {response.status_code}. Error Message: {response.text}"
+        )
+    elif response.status_code == 403:
+        print(
+            f"Permission denied: {response.status_code}. Error Message: {response.text}"
+        )
     else:
-        print(f"Failed to update post. Error: {response.status_code}, {response.text}")
+        print(f"Failed to update post. Error status code: {response.status_code}")
+        logger.error(
+            f"Failed to update post. Error status code: {response.status_code}. Error Message: {json.dumps(response.text)}",
+        )

@@ -3,33 +3,44 @@ from tools.helper import (
     tool_registry,
     is_valid_iso8601,
     load_from_gptscript_workspace,
+    setup_logger,
 )
 import os
 import urllib.parse
 import io
 import mimetypes
+from typing import Union
+import sys
+import json
+
+logger = setup_logger(__name__)
 
 
-def _format_media_response(response_json: dict):
-    new_response_json = {}
-    keys = [
-        "id",
-        "date",
-        "date_gmt",
-        "modified",
-        "modified_gmt",
-        "slug",
-        "status",
-        "type",
-        "link",
-        "title",
-        "author",
-        "media_type",
-        "mime_type",
-    ]
-    for key in keys:
-        new_response_json[key] = response_json[key]
-    return new_response_json
+def _format_media_response(response_json: Union[dict, list]) -> Union[dict, list]:
+    # response is either a list of dict or a single dict
+    try:
+        if isinstance(response_json, list):
+            return [_format_media_response(media) for media in response_json]
+        else:
+            keys = [
+                "id",
+                "date",
+                "date_gmt",
+                "modified",
+                "modified_gmt",
+                "slug",
+                "status",
+                "type",
+                "link",
+                "title",
+                "author",
+                "media_type",
+                "mime_type",
+            ]
+            return {key: response_json[key] for key in keys if key in response_json}
+    except Exception as e:
+        logger.error(f"Error formatting media response: {e}")
+        return response_json
 
 
 @tool_registry.register("RetrieveMedia")
@@ -39,7 +50,7 @@ def retrieve_media(client):
 
     context = os.getenv("CONTEXT", "view").lower()
     context_enum = {"view", "embed", "edit"}
-    
+
     query_params = {}
     if context not in context_enum:
         raise ValueError(
@@ -55,7 +66,7 @@ def retrieve_media(client):
         return response.json()
     else:
         print(
-            f"Failed to retrieve post. Error: {response.status_code}, {response.text}"
+            f"Failed to retrieve media. Error: {response.status_code}, {response.text}"
         )
 
 
@@ -134,10 +145,18 @@ def list_media(client):
     query_params["order"] = order
 
     response = client.get(url, params=query_params)
-    if response.status_code >= 200 and response.status_code < 300:
-        return [_format_media_response(media) for media in response.json()]
+    if response.status_code == 200:
+        return _format_media_response(response.json())
+    elif response.status_code == 401:
+        print(
+            f"Authentication failed: {response.status_code}. Error Message: {response.text}"
+        )
+    elif response.status_code == 403:
+        print(
+            f"Permission denied: {response.status_code}. Error Message: {response.text}"
+        )
     else:
-        print(f"Failed to list posts. Error: {response.status_code}, {response.text}")
+        print(f"Failed to list media. Error code: {response.status_code}")
 
 
 @tool_registry.register("UploadMedia")
@@ -148,7 +167,7 @@ def upload_media(client):
         client (Client): The client object to use for the request.
 
     Raises:
-        ValueError: If the file path is not provided or the file is not found.
+        ValueError: If the media file path is not provided or the file is not found.
 
     Returns:
         dict: The response from the WordPress site. Includes the metadata of the uploaded media.
@@ -159,12 +178,7 @@ def upload_media(client):
     if media_file_path == "":
         raise ValueError("Error: Media file path is required to upload media file.")
 
-    try:
-        data = load_from_gptscript_workspace(media_file_path)
-    except Exception as e:
-        raise Exception(
-            f"Failed to load file {media_file_path} from GPTScript workspace. Exception: {e}"
-        )
+    data = load_from_gptscript_workspace(media_file_path)
 
     # with open(file_path, "rb") as file:
     #     data = file.read()
@@ -176,10 +190,14 @@ def upload_media(client):
 
     response = client.post(upload_url, files=files)
 
-    if response.status_code >= 200 and response.status_code < 300:
+    if response.status_code == 201:
         return _format_media_response(response.json())
+    elif response.status_code == 401:
+        print(f"Authentication failed: {response.status_code}, {response.text}")
+    elif response.status_code == 403:
+        print(f"Permission denied: {response.status_code}, {response.text}")
     else:
-        print(f"Failed to create media. Error: {response.status_code}, {response.text}")
+        print(f"Failed to create/upload media. Error code: {response.status_code}")
 
 
 @tool_registry.register("UpdateMedia")
@@ -218,8 +236,12 @@ def update_media(client):
         media_data["author"] = int(author_id)
 
     response = client.post(url, json=media_data)
-    if response.status_code >= 200 and response.status_code < 300:
+    if response.status_code == 200:
         return _format_media_response(response.json())
+    elif response.status_code == 401:
+        print(f"Authentication failed: {response.status_code}, {response.text}")
+    elif response.status_code == 403:
+        print(f"Permission denied: {response.status_code}, {response.text}")
     else:
         print(f"Failed to update media. Error: {response.status_code}, {response.text}")
 
@@ -232,7 +254,13 @@ def delete_media(client):
     url = f"{WORDPRESS_API_URL}/media/{media_id}"  # not allowed to put media to trash thru rest api
 
     response = client.delete(url, params=query_params)
-    if response.status_code >= 200 and response.status_code < 300:
-        return {"message": "Media deleted successfully"}
+    if response.status_code == 200:
+        return {
+            "message": f"{response.status_code}. Media {media_id} deleted successfully"
+        }
+    elif response.status_code == 401:
+        print(f"Authentication failed: {response.status_code}, {response.text}")
+    elif response.status_code == 403:
+        print(f"Permission denied: {response.status_code}, {response.text}")
     else:
         print(f"Failed to delete media. Error: {response.status_code}, {response.text}")
