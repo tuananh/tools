@@ -53,8 +53,6 @@ tools:
     reference: ./tasks
   threads:
     reference: ./threads
-  projects:
-    reference: ./projects
   knowledge:
     reference: ./knowledge
   shell:
@@ -65,6 +63,8 @@ tools:
     reference: ./search/tavily
   pagerduty:
     reference: ./pagerduty
+  postgres:
+    reference: ./postgres
 
 knowledgeDataSources:
   notion-data-source:
