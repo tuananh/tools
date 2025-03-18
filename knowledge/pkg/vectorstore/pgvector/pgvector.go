@@ -307,13 +307,12 @@ func (v VectorStore) AddDocuments(ctx context.Context, docs []vs.Document, colle
 		VALUES($1, $2, $3, $4, $5)`, v.embeddingTableName)
 
 	var wg sync.WaitGroup
+	qqLock := sync.Mutex{} // lock for the pgx batch queue
 	semaphore := make(chan struct{}, v.embeddingConcurrency)
+	wg.Add(len(docs))
 	for docIdx, doc := range docs {
-		id := uuid.New().String()
-		ids[docIdx] = id
-		doc.ID = id
+		ids[docIdx] = doc.ID
 
-		wg.Add(1)
 		go func(doc vs.Document) {
 			defer wg.Done()
 
@@ -328,17 +327,20 @@ func (v VectorStore) AddDocuments(ctx context.Context, docs []vs.Document, colle
 
 			var vec []float32
 			if len(doc.Embedding) > 0 {
-				slog.Debug("Using provided embedding", "documentID", doc.ID, "store", "pgvector")
 				vec = doc.Embedding
 			} else {
 				vec, err = v.embeddingFunc(ctx, doc.Content)
 				if err != nil {
+					slog.Error("failed to embed document", "documentID", doc.ID, "error", err)
 					setSharedErr(fmt.Errorf("failed to embed document %s: %w", doc.ID, err))
 					return
 				}
 			}
 
+			qqLock.Lock()
 			b.Queue(sql, doc.ID, []byte(doc.Content), pgvector.NewVector(vec), doc.Metadata, cid)
+			qqLock.Unlock()
+			slog.Debug("Adding document to pgvector", "documentID", doc.ID, "collection", collection, "queueSize", b.Len())
 		}(doc)
 
 		docs[docIdx] = doc
@@ -349,7 +351,17 @@ func (v VectorStore) AddDocuments(ctx context.Context, docs []vs.Document, colle
 		return nil, sharedErr
 	}
 
-	return ids, v.conn.SendBatch(ctx, b).Close()
+	slog.Debug("Sending batch to pgvector", "store", "pgvector", "batchSize", b.Len())
+
+	results := v.conn.SendBatch(ctx, b)
+	for _, d := range docs {
+		_, err := results.Exec()
+		if err != nil {
+			slog.Error("failed to insert document in pgvector", "documentID", d.ID, "error", err)
+		}
+	}
+
+	return ids, results.Close()
 }
 
 /*
@@ -480,6 +492,25 @@ func (v VectorStore) RemoveDocument(ctx context.Context, documentID string, coll
 	return err
 }
 
+func (v VectorStore) GetDocument(ctx context.Context, documentID, collection string) (vs.Document, error) {
+	cid, err := v.getCollectionUUID(ctx, collection)
+	if err != nil {
+		return vs.Document{}, err
+	}
+
+	var doc vs.Document
+	var content []byte
+	var vec pgvector.Vector
+	err = v.conn.QueryRow(ctx, fmt.Sprintf(`SELECT document, cmetadata, embedding FROM %s WHERE uuid = $1 AND collection_id = $2`, v.embeddingTableName), documentID, cid).Scan(&content, &doc.Metadata, &vec)
+	if err != nil {
+		return vs.Document{}, err
+	}
+	doc.ID = documentID
+	doc.Content = string(content)
+	doc.Embedding = vec.Slice()
+	return doc, nil
+}
+
 func (v VectorStore) GetDocuments(ctx context.Context, collection string, where map[string]string, whereDocument []cg.WhereDocument) ([]vs.Document, error) {
 	var args []any
 	var whereCol string
@@ -537,7 +568,7 @@ func buildWhereClause(args []any, where map[string]string, whereDocument []cg.Wh
 		args = make([]any, 0)
 	}
 
-	argIndex := len(args) + 1 // Usually w start with index 2 because $1 is for cid
+	argIndex := len(args) + 1 // Usually we start with index 2 because $1 is for cid
 	for k, v := range where {
 		whereClauses = append(whereClauses, fmt.Sprintf("(cmetadata ->> $%d) = $%d", argIndex, argIndex+1))
 		args = append(args, k, v)
@@ -545,11 +576,12 @@ func buildWhereClause(args []any, where map[string]string, whereDocument []cg.Wh
 	}
 
 	if len(whereDocument) > 0 {
-		wc, err := helper.BuildWhereDocumentClause(whereDocument, "AND")
+		wc, a, err := helper.BuildWhereDocumentClauseIndexed(whereDocument, "AND", argIndex)
 		if err != nil {
 			return "", nil, err
 		}
 		whereClauses = append(whereClauses, wc)
+		args = append(args, a...)
 	}
 
 	whereClause := strings.Join(whereClauses, " AND ")
