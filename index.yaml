@@ -3,6 +3,8 @@ tools:
     reference: ./sendgrid
   file-summarizer:
     reference: ./file-summarizer
+  google-calendar:
+    reference: ./google/calendar
   database:
     reference: ./database
   zoom:
@@ -83,6 +85,14 @@ tools:
     reference: ./colly-scraper
   obot-search:
     reference: ./search/tavily/obot-search.gpt
+  search-combo:
+    reference: ./search-combo
+  aws-s3:
+    reference: ./aws/s3
+  aws-ec2:
+    reference: ./aws/ec2
+  discord:
+    reference: ./discord
 
 knowledgeDataSources:
   notion-data-source:
@@ -121,6 +131,8 @@ system:
     reference: ./docker
   tasks-workflow:
     reference: ./tasks-workflow
+  task-invoke:
+    reference: ./task-invoke
 
 modelProviders:
   openai-model-provider:
